@@ -4,8 +4,10 @@ const {
 } = require("@adiwajshing/baileys");
 const makeWASocket = require("@adiwajshing/baileys").default;
 const { getIPs, sleep } = require("./utilities");
-const { getUsers } = require("./database");
-var mysql = require("mysql");
+const { getUsers,connection} = require("./database");
+var mysql = require('mysql');
+
+
 
 const fs = require("fs");
 
@@ -49,13 +51,25 @@ const sendMessage = async (params, res, status) => {
     reasonFailFile = "",
     codeStatus = 200,
     dataRes = { msg: "Mensaje enviado correctamente", data: {} };
+   
   if (sock) {
-    getUsers(async (users) => {
+    getUsers(async (users,con) => {
+      var contador1 = 0
+      var contador2 = users.length
       for (i = 0; i < users.length; i++) {
         const user = users[i];
-        await sleep(20000);
+        await sleep(10000);
+        if(contador1 == 2){
+          await sleep(10000);
+          contador1 = 0
+        }
+        else{contador1 ++}
+
         const id = `591${user.phone}@s.whatsapp.net`;
+          
+
         sock
+        
           .sendMessage(id, { text: user.message })
           .then(async () => {
             sendedMessage = true;
@@ -64,7 +78,8 @@ const sendMessage = async (params, res, status) => {
                 image: { url: user.img },
                 caption: "",
               })
-
+              
+               
               .then(() => {
                 sendedFile = true;
                 if (!resSended) {
@@ -72,25 +87,41 @@ const sendMessage = async (params, res, status) => {
                   codeStatus = 200;
                   dataRes = { msg: "Enviado Correctamente" };
                   res.status(codeStatus).json(dataRes);
-                  console.log(
-                    `Mensaeje enviado correctamente a ${user.phone}!`
-                  );
                 }
+
+                console.log(`Mensaeje enviado correctamente a ${user.phone}!`);
+
+                
+                const now = new Date();
+        const time = now.toLocaleTimeString();
+       
+
+            con.query(
+              "INSERT INTO reports (phone, time) VALUES (?,?)",
+              [user.phone, time]
+            );
+            con.query(
+              `DELETE FROM pruebas WHERE phone = ${user.phone}`
+            ) 
+            
+            
+            /* if(contador2 == 0){
+              let timer;
+             timer = setTimeout(function() {
+              con.end(function(err) {
+                if (err) throw err;
+                console.log('Connection closed!');
+              });
+            }, 5000);}
+            else{contador2 --} */
+               
+              
+                })
+               
                 // statusSended(users, codeStatus, dataRes, sendedMessage, reasonFailMessage, sendedFile, reasonFailFile);
               })
-              .catch((err) => {
-                sendedFile = false;
-                console.log(err);
-                if (!resSended) {
-                  resSended = true;
-                  reasonFailFile = "No se pudo enviar el archivo";
-                  codeStatus = 500;
-                  dataRes = { msg: "Ocurrio un error desconocido", data: err };
-                  res.status(codeStatus).json(dataRes);
-                }
-                // pushMessageSended(params, codeStatus, dataRes, sendedMessage, reasonFailMessage, sendedFile, reasonFailFile);
-              });
-          })
+              
+        
           .catch((err) => {
             console.log(err);
             if (err) {
@@ -98,7 +129,7 @@ const sendMessage = async (params, res, status) => {
               reasonFailMessage = "No se pudo enviar el mensaje";
               resSended = true;
               codeStatus = 500;
-              dataRes = { msg: "Ocurrio un error desconocido", data: err };
+              dataRes = { msg: "Ocurrió un error desconocido", data: err };
             }
             if (!resSended) {
               healthcheck;
@@ -107,12 +138,13 @@ const sendMessage = async (params, res, status) => {
             }
             // pushMessageSended(params, codeStatus, dataRes, sendedMessage, reasonFailMessage, sendedFile, reasonFailFile);
           });
-      }
-    });
+      
+          } 
+  });
   } else {
-    reasonFailMessage = reasonFailFile = "Conn no inicializado";
+    reasonFailMessage = reasonFailFile = "Sesión no iniciada.";
     codeStatus = 500;
-    dataRes = { msg: "Conn no inicializado", data: {} };
+    dataRes = { msg: "Sesión no iniciada.", data: {} };
     res.status(codeStatus).json(dataRes);
   }
 };
